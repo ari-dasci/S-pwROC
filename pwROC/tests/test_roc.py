@@ -60,7 +60,14 @@ class TestSparkExplOut(unittest.TestCase):
         self.assertEqual(type(auc), np.float64)
 
     def test_get_score_all_windows(self):
-        scores_list, auc_list = self.roc_metric.get_score_all_windows(self.scores, self.maintenances)
+        scores_list, auc_list = self.roc_metric.get_score_all_windows(
+            self.scores, self.maintenances,
+            min_window_length=1, max_window_length=2,
+            num_windows=2
+        )
+        self.assertEqual(scores_list.shape, (7, 4))
+        self.assertEqual(len(auc_list), 2)
+
 
 if __name__ == '__main__':
     unittest.main()

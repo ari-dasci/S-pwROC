@@ -18,6 +18,7 @@ setup(
     entry_points={
         "console_scripts":[
          "pwROC-cli=pwROC.cli:main"
+         "pwROC-BD-cli=pwROC.cli-BD:main [pyspark]"
         ]
     },
     install_requires=[
@@ -26,8 +27,10 @@ setup(
         'pandas',
         'sklearn',
         'pyarrow',
-        'pyspark',
         'seaborn'
     ],
+    extra_requires={
+        'pyspark'
+    },
     python_requires='>=3.6'
 )

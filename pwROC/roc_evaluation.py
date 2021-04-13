@@ -267,20 +267,16 @@ class MetricsROC:
         )
 
         if hasattr(self, 'threshold'):
-            self.threshold = algorithm_results\
-                .selectExpr('percentile_approx(scores, 0.95)')\
-                .collect()[0][0]
+            self.threshold = np.percentile(algorithm_results['scores'], 0.95)
 
         if num_windows == -1:
             windows = np.array([1, 2, 3, 4, 5, 6, 12, 18, 24, 36, 48])
             num_windows = len(windows)
         else:
-            max_window = min([algorithm_results.agg({"TimeDistance": "max"})\
-                              .collect()[0]["max(TimeDistance)"],
-                              max_window_length])
-            min_window = max([algorithm_results.agg({"TimeDistance": "min"})\
-                              .collect()[0]["min(TimeDistance)"],
-                              min_window_length])
+            max_window = min(np.max(algorithm_results.TimeDistance),
+                             max_window_length)
+            min_window = max(np.min(algorithm_results.TimeDistance),
+                             min_window_length)
             windows = np.linspace(min_window, max_window, num=num_windows)
 
         scores_list = pd.DataFrame({'tpr': [], 'fpr': [],
@@ -300,5 +296,6 @@ class MetricsROC:
             scores_list = pd.concat([scores_list, new_results])
             auc_list[i] = auc
 
+        print(scores_list)
         return(scores_list, auc_list)
 
