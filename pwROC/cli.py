@@ -1,12 +1,12 @@
 #!/ucsr/bin/env python3
-"""evaluacion - Evaluation tools for Anomaly Detection Algorithms
+"""pwROC - Evaluation tools for Anomaly Detection Algorithms using the preceding window ROC
 Usage:
-    evaluacion-cli filter <algorithm> [--header=header] [--format=format] [--filter_planned=filter_planned]
-    evaluacion-cli roc_curve <algorithm> [--window_size=window_size] [--header=header] [--format=format] [--agg_method=agg_method] [--filter_planned=filter_planned]
-    evaluacion-cli roc_surface <algorithm> [--num_windows=num_windows] [--header=header] [--format=format] [--agg_method=agg_method] [--filter_planned=filter_planned]
-    evaluacion-cli open_surface <algorithm> [--agg_method=agg_method] [--filter_planned=filter_planned]
-    evaluacion-cli summarise_surface <algorithm> [--agg_method=agg_method] [--filter_planned=filter_planned]
-    evaluacion-cli (-h | --help)
+    pwROC-cli filter <algorithm> [--header=header] [--format=format] [--filter_planned=filter_planned]
+    pwROC-cli roc_curve <algorithm> [--window_size=window_size] [--header=header] [--format=format] [--agg_method=agg_method] [--filter_planned=filter_planned]
+    pwROC-cli roc_surface <algorithm> [--num_windows=num_windows] [--header=header] [--format=format] [--agg_method=agg_method] [--filter_planned=filter_planned]
+    pwROC-cli open_surface <algorithm> [--agg_method=agg_method] [--filter_planned=filter_planned]
+    pwROC-cli summarise_surface <algorithm> [--agg_method=agg_method] [--filter_planned=filter_planned]
+    pwROC-cli (-h | --help)
 
 Options:
     <algorithm>                 Name of the folder with the results to evaluate.
@@ -22,17 +22,30 @@ import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-import pyspark.sql.functions as F
-import pickle as pl
 from docopt import docopt
 from sklearn import metrics
-from pyspark.sql import SparkSession
-from pyspark.sql.types import DoubleType, IntegerType, DateType, StructType, StructField
-from evaluacion import MetricsROC, filter_maintenances
+from pwROC import MetricsROC, filter_maintenances
 from matplotlib import cm
 from matplotlib.ticker import MaxNLocator
-from mpl_toolkits.mplot3d import Axes3D
 
+
+
+def summarise_surface(alg_name, agg_method, filter_planned):
+    results_path = "results/" + alg_name + "/surface-metrics-" + agg_method
+    if filter_planned:
+        results_path = results_path + "-FM"
+        results = pd.read_csv(results_path + ".csv")
+        results = results[['fpr', 'window_length', 'tpr']]
+
+    results_by_window = results.groupby(['window_length'])
+    summarise = pd.DataFrame({'Window': [], 'AUC': []})
+    for window, frame in results_by_window:
+        auc = metrics.auc(frame.fpr, frame.tpr)
+        summarise = summarise.append(pd.DataFrame({
+            'Window': [window], 'AUC': [auc]
+        }))
+
+    summarise.to_csv(results_path + "-summarise.csv", index=False)
 def main():
     arguments = docopt(__doc__)
 
@@ -44,8 +57,6 @@ def main():
 
     results = pd.read_csv('results/summary.csv', index_col=['Algorithm', 'WindowSize'])
     random_result = pd.DataFrame({'tpr': [0, 1], 'fpr': [0, 1], 'Algorithm': ['random', 'random']})
-
-    schema = StructType()
 
     if arguments['--format'] == "us":
         schema = StructType([StructField("unix", IntegerType()),
@@ -62,30 +73,13 @@ def main():
         agg_method = arguments['--agg_method']
         window_size = float(arguments['--window_size'])
     if arguments['filter'] or arguments['roc_curve'] or arguments['roc_surface']:
-        sc = SparkSession.builder\
-                     .appName("AppTest") \
-                     .master("local[8]") \
-                     .config('spark.local.dir', '/mnt/DATA/Documentos/Experimentos') \
-                     .getOrCreate()
-        scores = sc.read.option("header", arguments['--header'])\
-                        .csv(alg_folder + "*/*.csv", schema=schema)
-        if not arguments['--header']:
-            scores = scores.withColumnRenamed('_c0', "unix").withColumnRenamed('_c1', "scores")
+        scores = pd.read_csv(alg_folder + "results.csv")
 
         if arguments['filter']:
             alg_folder = "results/" + alg_name + "-FM/"
             scores = filter_maintenances(scores, maintenances)
-            scores = scores.withColumn("day", F.from_unixtime('unix').cast(DateType()))
-
-            scores.write.partitionBy("day")\
-                  .mode('overwrite')\
-                  .format("com.databricks.spark.csv")\
-                  .save(alg_folder)
         else:
             roc_metric = MetricsROC(agg_method=agg_method)
-            scores = scores.withColumn("Id", F.monotonically_increasing_id())\
-                           .repartitionByRange(40, 'Id')\
-                           .withColumn("Id", F.spark_partition_id())
 
     if filter_planned:
         maintenances = maintenances[maintenances['maint_id'] != 'M69']
@@ -104,7 +98,8 @@ def main():
         # Compute results
         fpr, tpr, threshold, auc = roc_metric.get_score(
             scores, np.array(maintenances.unix_start),
-            window_length=window_size)
+            window_length=window_size
+        )
         alg_roc = pd.DataFrame({'fpr': fpr, 'tpr': tpr, 'threshold': threshold})
 
         alg_roc.to_csv(results_path + ".csv", index=False)
@@ -131,7 +126,8 @@ def main():
             results_path = results_path + "-FM"
 
         scores_list, auc_list = roc_metric.get_score_all_windows(
-            scores, np.array(maintenances.unix_start), num_windows=num_windows)
+            scores, np.array(maintenances.unix_start), num_windows=num_windows
+        )
 
         # Save results
         print(auc_list)
@@ -163,18 +159,4 @@ def main():
 
         plt.show()
     if arguments['summarise_surface']:
-        results_path = "results/" + alg_name + "/surface-metrics-" + agg_method
-        if filter_planned:
-            results_path = results_path + "-FM"
-        results = pd.read_csv(results_path + ".csv")
-        results = results[['fpr', 'window_length', 'tpr']]
-
-        results_by_window = results.groupby(['window_length'])
-        summarise = pd.DataFrame({'Window': [], 'AUC': []})
-        for window, frame in results_by_window:
-            auc = metrics.auc(frame.fpr, frame.tpr)
-            summarise = summarise.append(pd.DataFrame({
-                'Window': [window], 'AUC': [auc]
-            }))
-
-        summarise.to_csv(results_path + "-summarise.csv", index=False)
+        summarise_surface(alg_name, agg_method, filter_planned)

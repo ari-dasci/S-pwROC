@@ -2,8 +2,6 @@ import numpy as np
 import pandas as pd
 
 from sklearn import metrics
-from pyspark.sql.types import DoubleType, StructType, StructField, IntegerType
-from pyspark.sql import SparkSession
 from math import exp
 
 
@@ -41,7 +39,7 @@ class MetricsROC:
         Parameters
         ----------
         algoritm_results: dataframe
-            Algorithm results with unix, Label and Id features.
+            Algorithm results with unix, Label features.
         maintenances: dataframe
             Maintenances dataframe with unix column that represents the maintenances.
         window_length: float Time
@@ -53,41 +51,35 @@ class MetricsROC:
         dataframe
             Input data frame with computed NextAlarm, TimeDistance and WindowsDistance
         """
-        struct_fields = [StructField('unix', IntegerType(), True),
-                         StructField('scores', DoubleType(), True),
-                         StructField('Id', IntegerType(), True),
-                         StructField('NextAlarm', IntegerType(), True),
-                         StructField('TimeDistance', DoubleType(), True),
-                         StructField('WindowsDistance', IntegerType(), True)
-                         ]
 
-        schema = StructType(struct_fields)
+        # def udf_append_next_alarm(sample_pd):
+        #     sample_pd['NextAlarm'] = v_get_next_alarm(sample_pd['unix'])
+        #     sample_pd['TimeDistance'] = (sample_pd['NextAlarm'] - sample_pd['unix']) / 3600.0
+        #     algorithm_results['WindowsDistance'] = algorithm_results['TimeDistance'] // window_length
+        #     return sample_pd
 
+        # def udf_append_next_alarm_single_negative_window(sample_pd):
+        #     sample_pd['NextAlarm'] = v_get_next_alarm(sample_pd['unix'])
+        #     sample_pd['TimeDistance'] = (sample_pd['NextAlarm'] - sample_pd['unix']) / 3600.0
+        #     sample_pd['WindowsDistance'] = sample_pd['TimeDistance'] > window_length
+        #     return sample_pd
         def get_next_alarm(timestamp):
             posterior_alarms = maintenances[maintenances > timestamp]
-            next_alarm = posterior_alarms[0] if len(posterior_alarms) > 0 else None
+            if len(posterior_alarms) > 0:
+                next_alarm = posterior_alarms[0]
+            else:
+                next_alarm = -1
             return next_alarm
 
         v_get_next_alarm = np.vectorize(get_next_alarm)
 
-        def udf_append_next_alarm(sample_pd):
-            sample_pd['NextAlarm'] = v_get_next_alarm(sample_pd['unix'])
-            sample_pd['TimeDistance'] = (sample_pd['NextAlarm'] - sample_pd['unix']) / 3600.0
-            sample_pd['WindowsDistance'] = sample_pd['TimeDistance'] // window_length
-            return sample_pd
-
-        def udf_append_next_alarm_single_negative_window(sample_pd):
-            sample_pd['NextAlarm'] = v_get_next_alarm(sample_pd['unix'])
-            sample_pd['TimeDistance'] = (sample_pd['NextAlarm'] - sample_pd['unix']) / 3600.0
-            sample_pd['WindowsDistance'] = sample_pd['TimeDistance'] > window_length
-            return sample_pd
-
+        algorithm_results['NextAlarm'] = v_get_next_alarm(algorithm_results['unix'])
+        algorithm_results['TimeDistance'] = (algorithm_results['NextAlarm'] -
+                                             algorithm_results['unix']) / 3600.0
         if(single_negative_window):
-            algorithm_results = algorithm_results.groupby('Id').\
-                applyInPandas(udf_append_next_alarm_single_negative_window, schema)
+            algorithm_results['WindowsDistance'] = algorithm_results['TimeDistance'] > window_length
         else:
-            algorithm_results = algorithm_results.groupby('Id').\
-                applyInPandas(udf_append_next_alarm, schema)
+            algorithm_results['WindowsDistance'] = algorithm_results['TimeDistance'] // window_length
 
         return algorithm_results
 
@@ -102,14 +94,6 @@ class MetricsROC:
         maintenances: dataframe
             Maintenances dataframe with unix column that represents the maintenances.
         """
-        struct_fields = [StructField('unix', IntegerType(), True),
-                         StructField('scores', DoubleType(), True),
-                         StructField('Id', IntegerType(), True),
-                         StructField('NextAlarm', IntegerType(), True),
-                         StructField('TimeDistance', DoubleType(), True)
-                         ]
-
-        schema = StructType(struct_fields)
 
         def get_next_alarm(timestamp):
             posterior_alarms = maintenances[maintenances > timestamp]
@@ -121,13 +105,8 @@ class MetricsROC:
 
         v_get_next_alarm = np.vectorize(get_next_alarm)
 
-        def udf_append_next_alarm(sample_pd):
-            sample_pd['NextAlarm'] = v_get_next_alarm(sample_pd['unix'])
-            sample_pd['TimeDistance'] = (sample_pd['NextAlarm'] - sample_pd['unix']) / 3600.0
-            return sample_pd
-
-        algorithm_results = algorithm_results.groupby('Id').\
-            applyInPandas(udf_append_next_alarm, schema)
+        algorithm_results['NextAlarm'] = v_get_next_alarm(algorithm_results['unix'])
+        algorithm_results['TimeDistance'] = (algorithm_results['NextAlarm'] - algorithm_results['unix']) / 3600.0
 
         return algorithm_results
 
@@ -143,30 +122,16 @@ class MetricsROC:
         dataframe
             Input data grouped by NextAlarm,WindowsDistance and with Score feature
         """
-        struct_fields = [StructField('NextAlarm', IntegerType(), True),
-                         StructField('WindowsDistance', IntegerType(), True),
-                         StructField('Score', DoubleType(), True),
-                         StructField('Label', IntegerType(), True)]
-        schema = StructType(struct_fields)
+        algorithm_results = pd.DataFrame({'Score': algorithm_results\
+                                          .groupby(['NextAlarm', 'WindowsDistance'])\
+                                          .scores\
+                                          .apply(self.agg_function)})\
+                              .reset_index()
 
+        algorithm_results['Label'] = np.logical_and(algorithm_results['WindowsDistance'] == 0,
+                                                    algorithm_results['NextAlarm'] != -1)
 
-        def udf_score_by_window(sample_pd):
-            agg_score = self.agg_function(sample_pd['scores'])
-            next_alarm = sample_pd['NextAlarm'][0]
-
-            score_by_window = pd.DataFrame({
-                "NextAlarm": [next_alarm],
-                "WindowsDistance": [sample_pd['WindowsDistance'][0]],
-                "Score": [agg_score],
-                "Label": [sample_pd['WindowsDistance'][0] == 0 and next_alarm != -1],
-            })
-            return score_by_window
-
-        aggregated_results = algorithm_results\
-            .groupby('NextAlarm', 'WindowsDistance')\
-            .applyInPandas(udf_score_by_window, schema)
-
-        return aggregated_results
+        return algorithm_results
 
     def __get_score_window(self, algorithm_results, window_length,
                            single_negative_window=False):
@@ -185,48 +150,17 @@ class MetricsROC:
             Input data grouped by NextAlarm,WindowsDistance and with Score feature
         """
 
-        structs_window = [StructField('NextAlarm', IntegerType(), True),
-                          StructField('WindowsDistance', IntegerType(), True),
-                          StructField('scores', DoubleType(), True)]
-        schema_window = StructType(structs_window)
-        structs_score = [StructField('NextAlarm', IntegerType(), True),
-                         StructField('WindowsDistance', IntegerType(), True),
-                         StructField('Score', DoubleType(), True),
-                         StructField('Label', IntegerType(), True)]
-        schema_score = StructType(structs_score)
+        if self.agg_method == "NAB":
+            def nab_score(timestamp):
+                ratio = timestamp/window_length
+                ratio = max(ratio, 0.01)
+                score = 2 / (1+exp(-15*ratio)) - 1
+                return(score)
 
-        def udf_compute_window(sample_pd):
-            if self.agg_method == "NAB":
-                def nab_score(timestamp):
-                    ratio = timestamp/window_length
+            v_nab_score = np.vectorize(nab_score)
+            algorithm_results['NABWeight'] = v_nab_score(algorithm_results['TimeDistance'])
+            algorithm_results['scores'] = algorithm_results['NABWeight']*algorithm_results['scores'] / np.sum(algorithm_results['NABWeight'])
 
-                    if ratio < 0.01:
-                        ratio = 0.01
-
-                    score = 2 / (1+exp(-15*ratio)) - 1
-                    return(score)
-
-                v_nab_score = np.vectorize(nab_score)
-                sample_pd['NABWeight'] = v_nab_score(sample_pd['TimeDistance'])
-                sample_pd['scores'] = sample_pd['NABWeight']*sample_pd['scores'] / np.sum(sample_pd['NABWeight'])
-
-            sample_pd['WindowsDistance'] = sample_pd['TimeDistance'] // window_length
-            return(sample_pd[['NextAlarm', 'WindowsDistance', 'scores']])
-
-        def udf_compute_window_single_negative_window(sample_pd):
-            if self.agg_method == "NAB":
-                def nab_score(timestamp):
-                    if timestamp > window_length:
-                        score = 1
-                    else:
-                        score = 2 / (1+exp(-15*timestamp/window_length)) - 1
-                    return(score)
-
-                v_nab_score = np.vectorize(nab_score)
-                sample_pd['NABWeight'] = v_nab_score(sample_pd['TimeDistance'])
-                sample_pd['scores'] = sample_pd['NABWeight']*sample_pd['scores'] / np.sum(sample_pd['NABWeight'])
-            sample_pd['WindowsDistance'] = sample_pd['TimeDistance'] > window_length
-            return(sample_pd[['NextAlarm', 'WindowsDistance', 'scores']])
 
         def udf_compute_score(sample_pd):
             agg_score = self.agg_function(sample_pd['scores'])
@@ -240,23 +174,33 @@ class MetricsROC:
             })
             return score_by_window
 
-        algorithm_results = algorithm_results.groupby('NextAlarm')
+        aggregated_results = algorithm_results.groupby('NextAlarm')
 
         if(single_negative_window):
-            aggregated_results = algorithm_results\
-                .applyInPandas(udf_compute_window_single_negative_window, schema_window)
+            algorithm_results['WindowsDistance'] = algorithm_results\
+                .TimeDistance.apply(lambda x: x > window_length)
         else:
-            aggregated_results = algorithm_results\
-                .applyInPandas(udf_compute_window, schema_window)
+            algorithm_results['WindowsDistance'] = algorithm_results\
+                .TimeDistance.apply(lambda x: x // window_length)
 
-        aggregated_results = aggregated_results\
-            .groupby('NextAlarm', 'WindowsDistance')\
-            .applyInPandas(udf_compute_score, schema_score)\
-            .toPandas()
+        algorithm_results = algorithm_results[['NextAlarm', 'WindowsDistance', 'scores']]
 
-        aggregated_results = aggregated_results.sort_values('Label')
-        fpr, tpr, threshold = metrics.roc_curve(aggregated_results['Label'],
-                                                aggregated_results['Score'])
+        # aggregated_results = algorithm_results\
+        #     .groupby('NextAlarm', 'WindowsDistance')\
+        #     .apply(udf_compute_score)
+
+        algorithm_results = pd.DataFrame({'Score': algorithm_results\
+                                          .groupby(['NextAlarm', 'WindowsDistance'])\
+                                          .scores\
+                                          .apply(self.agg_function)})\
+                              .reset_index()
+
+        algorithm_results['Label'] = np.logical_and(algorithm_results['WindowsDistance'] == 0,
+                                                    algorithm_results['NextAlarm'] != -1)
+
+        algorithm_results = algorithm_results.sort_values('Label')
+        fpr, tpr, threshold = metrics.roc_curve(algorithm_results['Label'],
+                                                algorithm_results['Score'])
 
         auc = metrics.auc(fpr, tpr)
         return(fpr, tpr, threshold, auc)
@@ -268,7 +212,7 @@ class MetricsROC:
         Parameters
         ----------
         algorithm_results:
-            dataframe with unix, Label and Id features
+            dataframe with unix, Label features
         maintenances:
             numpy array containing the maintenances timestamp
         window_lengh:
@@ -284,12 +228,11 @@ class MetricsROC:
             algorithm_results, maintenances, window_length, single_negative_window
         )
 
-        algorithm_results = self.__include_score(algorithm_results).toPandas()
+        algorithm_results = self.__include_score(algorithm_results)
 
         algorithm_results = algorithm_results.sort_values('Label')
         fpr, tpr, threshold = metrics.roc_curve(algorithm_results['Label'],
                                                 algorithm_results['Score'])
-
         auc = metrics.auc(fpr, tpr)
 
         return fpr, tpr, threshold, auc
@@ -302,7 +245,7 @@ class MetricsROC:
         Parameters
         ----------
         algorithm_results:
-            dataframe with unix, Label and Id features
+            dataframe with unix, Label  features
         maintenances:
             dataframe with unix feature, containing the maintenances
         min_window_length:
@@ -319,7 +262,6 @@ class MetricsROC:
         List of AUCs
         """
 
-        spark = SparkSession.builder.getOrCreate()
         algorithm_results = self.__append_next_alarm(
             algorithm_results, maintenances
         )
@@ -357,7 +299,6 @@ class MetricsROC:
             })
             scores_list = pd.concat([scores_list, new_results])
             auc_list[i] = auc
-            spark.catalog.clearCache()
 
         return(scores_list, auc_list)
 
