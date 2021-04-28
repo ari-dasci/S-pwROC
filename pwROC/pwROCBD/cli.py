@@ -28,10 +28,10 @@ from docopt import docopt
 from sklearn import metrics
 from pyspark.sql import SparkSession
 from pyspark.sql.types import DoubleType, IntegerType, DateType, StructType, StructField
-from pwROC import MetricsROC, filter_maintenances
 from matplotlib import cm
 from matplotlib.ticker import MaxNLocator
 from mpl_toolkits.mplot3d import Axes3D
+from pwROC import MetricsROC, filter_maintenances
 
 def main():
     arguments = docopt(__doc__)

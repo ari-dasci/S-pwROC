@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import pyspark.sql.functions as F
 from pyspark import SparkContext, SparkConf
 from pyspark.sql import SparkSession
-from evaluacion import MetricsROC
+from pwROC import MetricsROC
 from pyspark.sql.types import DoubleType, StructType, StructField, IntegerType, BooleanType
 from sklearn import metrics
 

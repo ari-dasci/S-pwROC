@@ -2,11 +2,12 @@ import unittest
 import numpy as np
 import pandas as pd
 import pyspark.sql.functions as F
-from pwROC import MetricsROCBD, MetricsROC
+from pwROC import MetricsROC
+from pwROC.pwROCBD import MetricsROCBD
 from pyspark.sql import SparkSession
 
 
-class TestSparkExplOut(unittest.TestCase):
+class TestpwROC(unittest.TestCase):
     def setUp(self):
         """
         Set Up results and maintenances data sets
