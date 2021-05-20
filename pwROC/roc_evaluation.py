@@ -202,8 +202,18 @@ class MetricsROC:
         fpr, tpr, threshold = metrics.roc_curve(algorithm_results['Label'],
                                                 algorithm_results['Score'])
 
+        threshold = np.sort(threshold)
+        threshold[len(threshold)-1] = threshold[len(threshold)-2]
+
+        precision = [metrics.precision_score(algorithm_results['Label'],
+                                             algorithm_results['Score'] >= thres) for thres in threshold]
+        recall = [metrics.recall_score(algorithm_results['Label'],
+                                       algorithm_results['Score'] >= thres) for thres in threshold]
+        f1 = [metrics.f1_score(algorithm_results['Label'],
+                               algorithm_results['Score'] >= thres) for thres in threshold]
         auc = metrics.auc(fpr, tpr)
-        return(fpr, tpr, threshold, auc)
+
+        return(fpr, tpr, precision, recall, f1, threshold, auc)
 
     def get_score(self, algorithm_results, maintenances, window_length=6,
                   single_negative_window=False):
@@ -221,7 +231,7 @@ class MetricsROC:
             Boolean that represents if one or many negative windows should be considered.
         Return
         ------
-        list with fpr, tpr and thresholds to compute AUC
+        list with fpr, tpr, recall, f1 and thresholds to compute AUC
         auc
         """
         algorithm_results = self.__append_windows_to_next_alarm(
@@ -233,13 +243,17 @@ class MetricsROC:
         algorithm_results = algorithm_results.sort_values('Label')
         fpr, tpr, threshold = metrics.roc_curve(algorithm_results['Label'],
                                                 algorithm_results['Score'])
+        recall = [metrics.recall_score(algorithm_results['Label'],
+                                       algorithm_results['Score'] >= thres) for thres in threshold]
+        f1 = [metrics.f1_score(algorithm_results['Label'],
+                               algorithm_results['Score'] >= thres) for thres in threshold]
         auc = metrics.auc(fpr, tpr)
 
-        return fpr, tpr, threshold, auc
+        return fpr, tpr, recall, f1, threshold, auc
 
     def get_score_all_windows(self, algorithm_results, maintenances,
-                              min_window_length=1, max_window_length=48,
-                              num_windows=-1, single_negative_window=False):
+                              windows=np.array([1, 2, 3, 4, 5, 6, 12, 18, 24, 36, 48]),
+                              single_negative_window=False):
         """
         Compute the score for algorithm results
         Parameters
@@ -269,27 +283,21 @@ class MetricsROC:
         if hasattr(self, 'threshold'):
             self.threshold = np.percentile(algorithm_results['scores'], 0.95)
 
-        if num_windows == -1:
-            windows = np.array([1, 2, 3, 4, 5, 6, 12, 18, 24, 36, 48])
-            num_windows = len(windows)
-        else:
-            max_window = min(np.max(algorithm_results.TimeDistance),
-                             max_window_length)
-            min_window = max(np.min(algorithm_results.TimeDistance),
-                             min_window_length)
-            windows = np.linspace(min_window, max_window, num=num_windows)
-
+        num_windows = len(windows)
         scores_list = pd.DataFrame({'tpr': [], 'fpr': [],
                                     'threshold': [], 'window_length': []})
         auc_list = np.zeros(num_windows)
 
         for i, window in enumerate(windows):
             print(window)
-            fpr, tpr, threshold, auc = self.__get_score_window(
+            fpr, tpr, precision, recall, f1, threshold, auc = self.__get_score_window(
                 algorithm_results, window, single_negative_window
             )
             new_results = pd.DataFrame({
                 'tpr': tpr, 'fpr': fpr,
+                'precision': precision,
+                'recall': recall,
+                'f1': f1,
                 'threshold': threshold,
                 'window_length': np.repeat(window, len(tpr))
             })

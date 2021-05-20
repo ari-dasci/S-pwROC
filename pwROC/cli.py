@@ -3,7 +3,7 @@
 Usage:
     pwROC-cli filter <algorithm> [--header=header] [--format=format] [--filter_planned=filter_planned]
     pwROC-cli roc_curve <algorithm> [--window_size=window_size] [--header=header] [--format=format] [--agg_method=agg_method] [--filter_planned=filter_planned]
-    pwROC-cli roc_surface <algorithm> [--num_windows=num_windows] [--header=header] [--format=format] [--agg_method=agg_method] [--filter_planned=filter_planned]
+    pwROC-cli roc_surface <algorithm> [--header=header] [--format=format] [--agg_method=agg_method] [--filter_planned=filter_planned]
     pwROC-cli open_surface <algorithm> [--agg_method=agg_method] [--filter_planned=filter_planned]
     pwROC-cli summarise_surface <algorithm> [--agg_method=agg_method] [--filter_planned=filter_planned]
     pwROC-cli (-h | --help)
@@ -15,7 +15,6 @@ Options:
     --format=format             Format of the results [default: us].
     --agg_method=agg_def        Aggregation method [default: mean].
     --filter_planned=filter_planned Filter planned maintenances [default: False].
-    --num_windows=num_windows   Num windows [default: -1].
     -h --help                   Show this screen.
 """
 import pandas as pd
@@ -155,12 +154,11 @@ def main():
         save_roc_figure(algorithm_roc, algorithm_name, auc, fig_path)
 
     if arguments['roc_surface']:
-        num_windows = int(arguments['--num_windows'])
         results_path = get_surface_metrics_path(algorithm_folder, agg_method,
                                                 filter_planned)
 
         scores_list, auc_list = roc_metric.get_score_all_windows(
-            scores, np.array(maintenances.unix_start), num_windows=num_windows
+            scores, np.array(maintenances.unix_start)
         )
 
         # Save results

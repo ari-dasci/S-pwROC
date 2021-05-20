@@ -31,7 +31,8 @@ from pyspark.sql.types import DoubleType, IntegerType, DateType, StructType, Str
 from matplotlib import cm
 from matplotlib.ticker import MaxNLocator
 from mpl_toolkits.mplot3d import Axes3D
-from pwROC import MetricsROC, filter_maintenances
+from pwROC import filter_maintenances
+from pwROC.pwROCBD import MetricsROCBD
 
 def main():
     arguments = docopt(__doc__)

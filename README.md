@@ -3,30 +3,38 @@ Temporal generalization of ROC curves for weakly labelled anomalies in time-seri
 
 ## Installation:
 
-    The package can be installed as a local package with pip:
-    ```
-    pip install -e .
-    ```
+The package can be installed as a local package with pip:
+
+```
+pip install -e .
+```
 
 ## Usage:
-    evaluacion-cli filter <algorithm> [--header=header] [--format=format] [--filter_planned=filter_planned]
-    evaluacion-cli roc_curve <algorithm> [--window_size=window_size] [--header=header] [--format=format] [--agg_method=agg_method] [--filter_planned=filter_planned]
-    evaluacion-cli roc_surface <algorithm> [--num_windows=num_windows] [--header=header] [--format=format] [--agg_method=agg_method] [--filter_planned=filter_planned]
-    evaluacion-cli open_surface <algorithm> [--agg_method=agg_method] [--filter_planned=filter_planned]
-    evaluacion-cli summarise_surface <algorithm> [--agg_method=agg_method] [--filter_planned=filter_planned]
-    evaluacion-cli (-h | --help)
+
+``` 
+evaluacion-cli filter <algorithm> [--header=header] [--format=format] [--filter_planned=filter_planned]
+evaluacion-cli roc_curve <algorithm> [--window_size=window_size] [--header=header] [--format=format] [--agg_method=agg_method] [--filter_planned=filter_planned]
+evaluacion-cli roc_surface <algorithm> [--num_windows=num_windows] [--header=header] [--format=format] [--agg_method=agg_method] [--filter_planned=filter_planned]
+evaluacion-cli open_surface <algorithm> [--agg_method=agg_method] [--filter_planned=filter_planned]
+evaluacion-cli summarise_surface <algorithm> [--agg_method=agg_method] [--filter_planned=filter_planned]
+evaluacion-cli (-h | --help)
+```
 
 ## Options:
-    <algorithm>                 Name of the folder with the results to evaluate.
-    --window_size=window_size   Size of the window previous to a maintenance to be considered as an anomaly [default: 6].
-    --header=header             Original files include the header [default: False].
-    --format=format             Format of the results [default: us].
-    --agg_method=agg_def        Aggregation method [default: mean].
-    --filter_planned=filter_planned Filter planned maintenances according to internal code [default: False].
-    --num_windows=num_windows   Num windows [default: -1].
-    -h --help                   Show this screen.
+
+``` 
+<algorithm>                 Name of the folder with the results to evaluate.
+--window_size=window_size   Size of the window previous to a maintenance to be considered as an anomaly [default: 6].
+--header=header             Original files include the header [default: False].
+--format=format             Format of the results [default: us].
+--agg_method=agg_def        Aggregation method [default: mean].
+--filter_planned=filter_planned Filter planned maintenances according to internal code [default: False].
+--num_windows=num_windows   Num windows [default: -1].
+-h --help                   Show this screen.
+```
 
 ## Considerations:
+
 - `algorithm` results are suposed to be in a subfolder of a folder called `results/`.
 - `format` options:
   - us: The data files contain two columns, unix (integer) and scores (double).
