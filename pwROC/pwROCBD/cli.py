@@ -83,7 +83,7 @@ def main():
                   .format("com.databricks.spark.csv")\
                   .save(alg_folder)
         else:
-            roc_metric = MetricsROC(agg_method=agg_method)
+            roc_metric = MetricsROCBD(agg_method=agg_method)
             scores = scores.withColumn("Id", F.monotonically_increasing_id())\
                            .repartitionByRange(40, 'Id')\
                            .withColumn("Id", F.spark_partition_id())

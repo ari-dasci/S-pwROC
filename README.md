@@ -12,12 +12,12 @@ pip install -e .
 ## Usage:
 
 ``` 
-evaluacion-cli filter <algorithm> [--header=header] [--format=format] [--filter_planned=filter_planned]
-evaluacion-cli roc_curve <algorithm> [--window_size=window_size] [--header=header] [--format=format] [--agg_method=agg_method] [--filter_planned=filter_planned]
-evaluacion-cli roc_surface <algorithm> [--num_windows=num_windows] [--header=header] [--format=format] [--agg_method=agg_method] [--filter_planned=filter_planned]
-evaluacion-cli open_surface <algorithm> [--agg_method=agg_method] [--filter_planned=filter_planned]
-evaluacion-cli summarise_surface <algorithm> [--agg_method=agg_method] [--filter_planned=filter_planned]
-evaluacion-cli (-h | --help)
+pwROC-cli filter <algorithm> [--header=header] [--format=format] [--filter_planned=filter_planned]
+pwROC-cli roc_curve <algorithm> [--window_size=window_size] [--header=header] [--format=format] [--agg_method=agg_method] [--filter_planned=filter_planned]
+pwROC-cli roc_surface <algorithm> [--num_windows=num_windows] [--header=header] [--format=format] [--agg_method=agg_method] [--filter_planned=filter_planned]
+pwROC-cli open_surface <algorithm> [--agg_method=agg_method] [--filter_planned=filter_planned]
+pwROC-cli summarise_surface <algorithm> [--agg_method=agg_method] [--filter_planned=filter_planned]
+pwROC-cli (-h | --help)
 ```
 
 ## Options:
